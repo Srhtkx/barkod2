@@ -59,7 +59,7 @@ export default function BarcodeScanner({
         //   const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight) * minEdgePercentage;
         //   return { width: minEdgeSize, height: minEdgeSize };
         // },
-        disableFlip: false, // Ters çevrilmiş barkodları okuma
+        disableFlip: true, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.CODE_128,
