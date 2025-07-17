@@ -69,7 +69,7 @@ export default function BarcodeScanner({
 
       const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        qrbox: { width: 320, height: 320 }, // Daha büyük tarama alanı
         disableFlip: false,
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
@@ -88,11 +88,14 @@ export default function BarcodeScanner({
           Html5QrcodeSupportedFormats.RSS_14,
           Html5QrcodeSupportedFormats.RSS_EXPANDED,
         ],
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true, // iOS için native çözüm motoru
+        },
         videoConstraints: {
-          facingMode: "environment", // Arka kamerayı tercih et
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          aspectRatio: 1.7777777778, // 16:9 en boy oranı
+          facingMode: { exact: "environment" }, // Arka kamera kesin
+          width: { min: 1280 }, // Daha net çözünürlük
+          height: { min: 720 },
+          aspectRatio: 1.7777777778,
         },
       };
 
@@ -118,7 +121,7 @@ export default function BarcodeScanner({
 
       try {
         await html5QrCodeRef.current.start(
-          deviceId || { facingMode: "environment" }, // Seçilen cihazı kullan veya arka kamerayı tercih et
+          deviceId || { facingMode: "environment" },
           config,
           onScanSuccess,
           onScanError
