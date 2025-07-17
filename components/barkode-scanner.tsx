@@ -53,7 +53,7 @@ export default function BarcodeScanner({
 
       const config = {
         fps: 10, // Saniyedeki kare sayısı
-        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
+        qrbox: { width: 300, height: 100 }, // Tarama kutusu boyutu
         disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
