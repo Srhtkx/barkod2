@@ -5,7 +5,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Html5QrcodeSupportedFormats, Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Camera, Scan, XCircle } from "lucide-react";
+import { AlertCircle, Camera, Scan, XCircle, Zap, ZapOff } from "lucide-react"; // Zap ve ZapOff eklendi
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface BarcodeScannerProps {
@@ -27,6 +27,7 @@ export default function BarcodeScanner({
   const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Html5QrcodeCameraDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [isTorchOn, setIsTorchOn] = useState(false); // Flaş durumu için state
 
   const qrCodeRegionId = "qr-code-full-region"; // Tarayıcının render edileceği div ID'si
 
@@ -37,12 +38,29 @@ export default function BarcodeScanner({
         console.log("QR Code scanning stopped.");
         setIsScanning(false);
         setError(null);
+        setIsTorchOn(false); // Tarayıcı durunca flaşı kapat
       } catch (err) {
         console.error("Unable to stop scanning.", err);
         setError("Tarayıcı durdurulurken hata oluştu.");
       }
     }
   }, []);
+
+  const toggleTorch = useCallback(async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        const newTorchState = !isTorchOn;
+        // 'torch' özelliğini içeren objeyi 'any' olarak tip dönüştürüyoruz
+        await html5QrCodeRef.current.applyVideoConstraints({
+          advanced: [{ torch: newTorchState }] as any,
+        });
+        setIsTorchOn(newTorchState);
+      } catch (err) {
+        console.error("Failed to toggle torch:", err);
+        setError("Flaş açılıp kapatılamadı.");
+      }
+    }
+  }, [isTorchOn]);
 
   const startScanning = useCallback(
     async (deviceId: string | null) => {
@@ -71,15 +89,11 @@ export default function BarcodeScanner({
           Html5QrcodeSupportedFormats.RSS_14,
           Html5QrcodeSupportedFormats.RSS_EXPANDED,
         ],
-        // Mobil cihazlar için video kısıtlamaları ekleyelim
         videoConstraints: {
           facingMode: "environment", // Arka kamerayı tercih et
-          // ideal çözünürlükler deneyebiliriz
-          // width: { ideal: 1280 },
-          // height: { ideal: 720 },
-          // veya daha düşük bir çözünürlük deneyebiliriz
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280 }, // Daha yüksek ideal genişlik
+          height: { ideal: 720 }, // Daha yüksek ideal yükseklik
+          aspectRatio: 1.7777777778, // 16:9 en boy oranı (yaygın telefon kameraları için)
         },
       };
 
@@ -104,10 +118,8 @@ export default function BarcodeScanner({
       }
 
       try {
-        // Tarayıcıyı başlat
-        // deviceId null ise, Html5Qrcode varsayılan olarak arka kamerayı (environment) kullanmaya çalışır.
         await html5QrCodeRef.current.start(
-          deviceId || { facingMode: "environment" }, // Seçilen cihazı kullan veya arka kamerayı tercih et
+          deviceId || { facingMode: "environment" },
           config,
           onScanSuccess,
           onScanError
@@ -135,12 +147,10 @@ export default function BarcodeScanner({
   );
 
   useEffect(() => {
-    // Bileşen yüklendiğinde kamera cihazlarını bir kez al
     Html5Qrcode.getCameras()
       .then((videoInputDevices) => {
         if (videoInputDevices && videoInputDevices.length > 0) {
           setDevices(videoInputDevices);
-          // İlk bulunan cihazı varsayılan olarak seç
           setSelectedDeviceId(videoInputDevices[0].id || null);
         } else {
           setError("Kamera cihazı bulunamadı.");
@@ -153,13 +163,11 @@ export default function BarcodeScanner({
         );
       });
 
-    // Bileşen kaldırıldığında tarayıcıyı durdur
     return () => {
       stopScanning();
     };
   }, [stopScanning]);
 
-  // selectedDeviceId değiştiğinde taramayı başlat/yeniden başlat
   useEffect(() => {
     if (selectedDeviceId) {
       startScanning(selectedDeviceId);
@@ -182,21 +190,18 @@ export default function BarcodeScanner({
           </Alert>
         )}
         <div className="relative w-full h-64 bg-gray-200 rounded-md overflow-hidden">
-          {/* html5-qrcode tarayıcıyı bu div içine render edecek */}
           <div id={qrCodeRegionId} className="w-full h-full object-cover"></div>
-          {/* Tarama kutusunu görselleştirmek için overlay */}
           {isScanning && (
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               style={{
-                // qrbox boyutuna göre ortalanmış bir çerçeve
                 border: "2px dashed rgba(255, 255, 255, 0.7)",
                 boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
                 borderRadius: "8px",
-                width: "70%", // %70'lik genişlik
-                height: "70%", // %70'lik yükseklik
-                maxWidth: "250px", // Maksimum 250px
-                maxHeight: "250px", // Maksimum 250px
+                width: "70%",
+                height: "70%",
+                maxWidth: "250px",
+                maxHeight: "250px",
                 margin: "auto",
               }}
             ></div>
@@ -217,13 +222,32 @@ export default function BarcodeScanner({
               <Scan className="mr-2 h-4 w-4" /> Taramayı Başlat
             </Button>
           ) : (
-            <Button
-              onClick={stopScanning}
-              variant="outline"
-              className="flex-1 bg-transparent"
-            >
-              <XCircle className="mr-2 h-4 w-4" /> Taramayı Durdur
-            </Button>
+            <>
+              <Button
+                onClick={stopScanning}
+                variant="outline"
+                className="flex-1 bg-transparent"
+              >
+                <XCircle className="mr-2 h-4 w-4" /> Taramayı Durdur
+              </Button>
+              {/* Flaş butonu, sadece tarama yapılıyorsa ve cihaz flaş destekliyorsa göster */}
+              {html5QrCodeRef.current && html5QrCodeRef.current.isScanning && (
+                <Button
+                  onClick={toggleTorch}
+                  variant="outline"
+                  className="bg-transparent"
+                >
+                  {isTorchOn ? (
+                    <ZapOff className="h-4 w-4" />
+                  ) : (
+                    <Zap className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {isTorchOn ? "Flaş Kapat" : "Flaş Aç"}
+                  </span>
+                </Button>
+              )}
+            </>
           )}
           <Button onClick={onClose} variant="secondary">
             Kapat
