@@ -2,7 +2,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
+import { Html5QrcodeSupportedFormats, Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Camera, Scan, XCircle } from "lucide-react";
@@ -13,106 +13,139 @@ interface BarcodeScannerProps {
   onClose: () => void;
 }
 
+// html5-qrcode'un döndürdüğü cihaz nesnesi için özel bir tip tanımlıyoruz
+type Html5QrcodeCameraDevice = {
+  id: string;
+  label: string;
+};
+
 export default function BarcodeScanner({
   onScan,
   onClose,
 }: BarcodeScannerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const codeReader = useRef<BrowserMultiFormatReader | null>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  // selectedDeviceId'ı string | null olarak başlatıyoruz
+  // devices state'inin tipini güncelliyoruz
+  const [devices, setDevices] = useState<Html5QrcodeCameraDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
-  const stopScanning = useCallback(() => {
-    if (codeReader.current) {
-      codeReader.current.reset();
+  const qrCodeRegionId = "qr-code-full-region"; // Tarayıcının render edileceği div ID'si
+
+  const stopScanning = useCallback(async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+        console.log("QR Code scanning stopped.");
+        setIsScanning(false);
+        setError(null);
+      } catch (err) {
+        console.error("Unable to stop scanning.", err);
+        setError("Tarayıcı durdurulurken hata oluştu.");
+      }
     }
-    setIsScanning(false);
-    setError(null);
   }, []);
 
-  const startScanning = useCallback(async () => {
-    setError(null);
-    if (!videoRef.current) return;
+  const startScanning = useCallback(
+    async (deviceId: string | null) => {
+      setError(null);
+      setIsScanning(true);
 
-    if (!codeReader.current) {
-      codeReader.current = new BrowserMultiFormatReader();
-    }
+      const config = {
+        fps: 10, // Saniyedeki kare sayısı
+        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
+        disableFlip: false, // Ters çevrilmiş barkodları okuma
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.QR_CODE,
+          // İhtiyacınız olan diğer formatları ekleyebilirsiniz
+        ],
+      };
 
-    try {
-      // deviceIdToUse'ı string | null olarak başlatıyoruz
-      let deviceIdToUse: string | null = null;
-      let videoInputDevices: MediaDeviceInfo[] = [];
+      const onScanSuccess = (decodedText: string, decodedResult: any) => {
+        console.log(`Code matched = ${decodedText}`, decodedResult);
+        onScan(decodedText);
+        stopScanning(); // Başarılı taramadan sonra taramayı durdur
+      };
+
+      const onScanError = (errorMessage: string) => {
+        // Hata mesajlarını konsola yazdır, kullanıcıya gösterme
+        // console.warn(`QR Code scanning error = ${errorMessage}`);
+        // setError(errorMessage); // Çok fazla hata mesajı gösterebilir, dikkatli kullanın
+      };
+
+      // Önceki tarayıcıyı durdur
+      await stopScanning();
+
+      // Html5Qrcode instance'ını oluştur veya mevcutsa kullan
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode(qrCodeRegionId);
+      }
 
       try {
-        // Cihazları listelemeyi dene
-        videoInputDevices = await codeReader.current.getVideoInputDevices();
-        if (videoInputDevices.length > 0) {
-          setDevices(videoInputDevices);
-          // selectedDeviceId null ise ilk cihazı kullan, aksi takdirde null olarak kalır
-          deviceIdToUse =
-            selectedDeviceId || videoInputDevices[0].deviceId || null;
-          setSelectedDeviceId(deviceIdToUse); // setSelectedDeviceId de string | null bekliyor
+        // Tarayıcıyı başlat
+        // deviceId null ise, Html5Qrcode varsayılan olarak arka kamerayı (environment) kullanmaya çalışır.
+        await html5QrCodeRef.current.start(
+          deviceId || { facingMode: "environment" }, // Seçilen cihazı kullan veya arka kamerayı tercih et
+          config,
+          onScanSuccess,
+          onScanError
+        );
+        setIsScanning(true);
+      } catch (err: any) {
+        console.error("Kamera başlatılamadı:", err);
+        if (err.name === "NotAllowedError") {
+          setError(
+            "Kamera erişimi reddedildi. Lütfen tarayıcı ayarlarınızdan kamera izinlerini verin."
+          );
+        } else if (err.name === "NotFoundError") {
+          setError(
+            "Kamera bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
+          );
         } else {
           setError(
-            "Kamera cihazı bulunamadı. Cihazınızda kamera olduğundan ve izin verdiğinizden emin olun."
+            `Kamera başlatılamadı: ${err.message}. Lütfen tarayıcı ayarlarınızı kontrol edin.`
           );
-          deviceIdToUse = null; // Cihaz bulunamazsa null olarak ayarla
         }
-      } catch (enumError: any) {
-        console.warn(
-          "Cihazları listelerken hata oluştu, varsayılan kamerayı deniyor:",
-          enumError
-        );
-        setError(
-          "Kamera cihazlarını listelerken bir sorun oluştu. Varsayılan kamerayı kullanmayı deniyorum. Lütfen kamera izinlerini kontrol edin."
-        );
-        deviceIdToUse = null; // Hata oluşursa null olarak ayarla
+        setIsScanning(false);
       }
-
-      // Video cihazından barkod çözmeyi dene, seçilen cihaz kimliğini veya null (varsayılan) kullanarak
-      codeReader.current.decodeFromVideoDevice(
-        deviceIdToUse,
-        videoRef.current,
-        (result, err) => {
-          if (result) {
-            onScan(result.getText());
-            stopScanning(); // Başarılı taramadan sonra taramayı durdur
-          }
-          if (err && !(err instanceof NotFoundException)) {
-            console.error(err);
-            setError("Barkod tararken hata oluştu. Lütfen tekrar deneyin.");
-          }
-        }
-      );
-      setIsScanning(true);
-    } catch (err: any) {
-      console.error("Kamera erişim hatası:", err);
-      if (err.name === "NotAllowedError") {
-        setError(
-          "Kamera erişimi reddedildi. Lütfen tarayıcı ayarlarınızdan kamera izinlerini verin."
-        );
-      } else if (err.name === "NotFoundError") {
-        setError(
-          "Kamera bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
-        );
-      } else {
-        setError(
-          `Kamera başlatılamadı: ${err.message}. Lütfen tarayıcı ayarlarınızı kontrol edin.`
-        );
-      }
-      setIsScanning(false);
-    }
-  }, [onScan, selectedDeviceId, stopScanning]); // stopScanning'i bağımlılıklara ekledik
+    },
+    [onScan, stopScanning]
+  );
 
   useEffect(() => {
-    // Cleanup on component unmount
+    // Bileşen yüklendiğinde kamera cihazlarını bir kez al
+    Html5Qrcode.getCameras()
+      .then((videoInputDevices) => {
+        if (videoInputDevices && videoInputDevices.length > 0) {
+          // Burada videoInputDevices zaten Html5QrcodeCameraDevice[] tipinde
+          setDevices(videoInputDevices);
+          // İlk bulunan cihazı varsayılan olarak seç
+          setSelectedDeviceId(videoInputDevices[0].id || null);
+        } else {
+          setError("Kamera cihazı bulunamadı.");
+        }
+      })
+      .catch((err) => {
+        console.error("Kamera cihazları listelenirken hata:", err);
+        setError(
+          "Kamera cihazları listelenirken hata oluştu. Lütfen izinleri kontrol edin."
+        );
+      });
+
+    // Bileşen kaldırıldığında tarayıcıyı durdur
     return () => {
       stopScanning();
     };
   }, [stopScanning]);
+
+  // selectedDeviceId değiştiğinde taramayı başlat/yeniden başlat
+  useEffect(() => {
+    if (selectedDeviceId) {
+      startScanning(selectedDeviceId);
+    }
+  }, [selectedDeviceId, startScanning]);
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -130,7 +163,8 @@ export default function BarcodeScanner({
           </Alert>
         )}
         <div className="relative w-full h-64 bg-gray-200 rounded-md overflow-hidden">
-          <video ref={videoRef} className="w-full h-full object-cover"></video>
+          {/* html5-qrcode tarayıcıyı bu div içine render edecek */}
+          <div id={qrCodeRegionId} className="w-full h-full object-cover"></div>
           {!isScanning && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
               <Camera className="h-12 w-12" />
@@ -139,7 +173,11 @@ export default function BarcodeScanner({
         </div>
         <div className="flex gap-2">
           {!isScanning ? (
-            <Button onClick={startScanning} className="flex-1">
+            <Button
+              onClick={() => startScanning(selectedDeviceId)}
+              className="flex-1"
+              disabled={!selectedDeviceId}
+            >
               <Scan className="mr-2 h-4 w-4" /> Taramayı Başlat
             </Button>
           ) : (
@@ -155,7 +193,7 @@ export default function BarcodeScanner({
             Kapat
           </Button>
         </div>
-        {devices.length > 1 && isScanning && (
+        {devices.length > 1 && (
           <div className="mt-4">
             <label
               htmlFor="camera-select"
@@ -168,14 +206,12 @@ export default function BarcodeScanner({
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
               value={selectedDeviceId || ""}
               onChange={(e) => {
-                setSelectedDeviceId(e.target.value || null); // Seçilen değer boşsa null olarak ayarla
-                stopScanning(); // Stop current scan to restart with new device
-                // startScanning will be called by useEffect or manually if needed
+                setSelectedDeviceId(e.target.value || null);
               }}
             >
               {devices.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Kamera ${device.deviceId}`}
+                <option key={device.id} value={device.id}>
+                  {device.label || `Kamera ${device.id}`}
                 </option>
               ))}
             </select>
