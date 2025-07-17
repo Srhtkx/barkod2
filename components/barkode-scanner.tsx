@@ -54,8 +54,8 @@ export default function BarcodeScanner({
       const qrboxSize = Math.min(250, videoWidth * 0.7); // Max 250px veya %70
 
       const config = {
-        fps: 10, // Saniyedeki kare sayısı
-        qrbox: { width: qrboxSize, height: qrboxSize }, // Tarama kutusu boyutu
+        fps: 20, // Saniyedeki kare sayısı
+        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
         disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
