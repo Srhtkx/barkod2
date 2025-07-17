@@ -40,7 +40,6 @@ export default function BarcodeScanner({
         console.warn("Tarayıcı sıfırlanırken hata:", e);
         // Eğer reset() metodu gerçekten yoksa veya hata verirse,
         // alternatif olarak akışları manuel durdurmayı deneyebiliriz.
-        // Ancak, reset() en kapsamlı durdurma yöntemidir.
         try {
           (codeReaderRef.current as any).stopContinuousDecode();
         } catch (e2) {
@@ -60,6 +59,7 @@ export default function BarcodeScanner({
 
   const startScanning = useCallback(
     async (deviceId: string | null) => {
+      console.log("startScanning çağrıldı. Seçilen cihaz ID:", deviceId); // Yeni log
       setError(null);
       setIsScanning(true);
       console.log("Attempting to start scanning with deviceId:", deviceId);
@@ -150,29 +150,34 @@ export default function BarcodeScanner({
   );
 
   useEffect(() => {
-    // Bileşen yüklendiğinde kamera cihazlarını bir kez al
+    console.log("useEffect: Kamera cihazları listeleniyor..."); // Yeni log
     BrowserMultiFormatReader.listVideoInputDevices()
       .then((videoInputDevices) => {
+        console.log("Bulunan kamera cihazları:", videoInputDevices); // Yeni log
         if (videoInputDevices && videoInputDevices.length > 0) {
-          // MediaDeviceInfo'dan deviceId ve label'ı al
           const formattedDevices = videoInputDevices.map((device) => ({
             deviceId: device.deviceId,
             label: device.label || `Kamera ${device.deviceId}`,
           }));
           setDevices(formattedDevices);
 
-          // Arka kamerayı (environment facing) bulmaya çalış
           const rearCamera = formattedDevices.find(
             (device) =>
               device.label.toLowerCase().includes("back") ||
               device.label.toLowerCase().includes("environment")
           );
-          // Eğer arka kamera bulunursa onu seç, yoksa ilk bulunanı seç
           setSelectedDeviceId(
             rearCamera?.deviceId || formattedDevices[0].deviceId || null
           );
+          console.log(
+            "Seçilen cihaz ID (useEffect):",
+            rearCamera?.deviceId || formattedDevices[0].deviceId || null
+          ); // Yeni log
         } else {
-          setError("Kamera cihazı bulunamadı.");
+          setError(
+            "Kamera cihazı bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
+          );
+          console.error("Kamera cihazı bulunamadı."); // Yeni log
         }
       })
       .catch((err) => {
@@ -182,15 +187,15 @@ export default function BarcodeScanner({
         );
       });
 
-    // Bileşen kaldırıldığında tarayıcıyı durdur
     return () => {
       stopScanning();
     };
   }, [stopScanning]);
 
   useEffect(() => {
+    console.log("selectedDeviceId değişti:", selectedDeviceId); // Yeni log
     if (selectedDeviceId) {
-      startScanning(selectedDeviceId);
+      // startScanning(selectedDeviceId) // Bu satırı şimdilik yorum satırı yapalım, butona basıldığında başlasın
     }
   }, [selectedDeviceId, startScanning]);
 
