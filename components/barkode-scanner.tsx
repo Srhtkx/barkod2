@@ -48,23 +48,34 @@ export default function BarcodeScanner({
     async (deviceId: string | null) => {
       setError(null);
       setIsScanning(true);
-
-      // Dinamik qrbox boyutu: Video genişliğinin %70'i
-      const videoWidth = 300; // Varsayılan genişlik, gerçek video boyutuna göre ayarlanabilir
-      const qrboxSize = Math.min(250, videoWidth * 0.7); // Max 250px veya %70
+      console.log("Attempting to start scanning with deviceId:", deviceId);
 
       const config = {
-        fps: 20, // Saniyedeki kare sayısı
-        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
+        fps: 10, // Saniyedeki kare sayısı
+        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu (mobil için daha esnek olabilir)
+        // Alternatif olarak, qrbox'ı yüzde olarak ayarlayabiliriz:
+        // qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+        //   const minEdgePercentage = 0.7; // %70'i kullan
+        //   const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight) * minEdgePercentage;
+        //   return { width: minEdgeSize, height: minEdgeSize };
+        // },
         disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.UPC_A, // UPC-A ve E gibi yaygın barkodları ekleyelim
+          Html5QrcodeSupportedFormats.UPC_A,
           Html5QrcodeSupportedFormats.UPC_E,
           Html5QrcodeSupportedFormats.ITF,
           Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.AZTEC, // Ek formatlar
+          Html5QrcodeSupportedFormats.CODABAR,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.MAXICODE,
+          Html5QrcodeSupportedFormats.PDF_417,
+          Html5QrcodeSupportedFormats.RSS_14,
+          Html5QrcodeSupportedFormats.RSS_EXPANDED,
         ],
       };
 
