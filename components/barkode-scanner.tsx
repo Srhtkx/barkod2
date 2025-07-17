@@ -5,7 +5,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Html5QrcodeSupportedFormats, Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Camera, Scan, XCircle, Zap, ZapOff } from "lucide-react"; // Zap ve ZapOff eklendi
+import { AlertCircle, Camera, Scan, XCircle, Zap, ZapOff } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface BarcodeScannerProps {
@@ -27,9 +27,9 @@ export default function BarcodeScanner({
   const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Html5QrcodeCameraDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-  const [isTorchOn, setIsTorchOn] = useState(false); // Flaş durumu için state
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
-  const qrCodeRegionId = "qr-code-full-region"; // Tarayıcının render edileceği div ID'si
+  const qrCodeRegionId = "qr-code-full-region";
 
   const stopScanning = useCallback(async () => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -38,7 +38,7 @@ export default function BarcodeScanner({
         console.log("QR Code scanning stopped.");
         setIsScanning(false);
         setError(null);
-        setIsTorchOn(false); // Tarayıcı durunca flaşı kapat
+        setIsTorchOn(false);
       } catch (err) {
         console.error("Unable to stop scanning.", err);
         setError("Tarayıcı durdurulurken hata oluştu.");
@@ -50,7 +50,6 @@ export default function BarcodeScanner({
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       try {
         const newTorchState = !isTorchOn;
-        // 'torch' özelliğini içeren objeyi 'any' olarak tip dönüştürüyoruz
         await html5QrCodeRef.current.applyVideoConstraints({
           advanced: [{ torch: newTorchState }] as any,
         });
@@ -69,9 +68,9 @@ export default function BarcodeScanner({
       console.log("Attempting to start scanning with deviceId:", deviceId);
 
       const config = {
-        fps: 10, // Saniyedeki kare sayısı
-        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
-        disableFlip: false, // Ters çevrilmiş barkodları okuma
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        disableFlip: false,
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.CODE_128,
@@ -91,22 +90,22 @@ export default function BarcodeScanner({
         ],
         videoConstraints: {
           facingMode: "environment", // Arka kamerayı tercih et
-          width: { ideal: 1280 }, // Daha yüksek ideal genişlik
-          height: { ideal: 720 }, // Daha yüksek ideal yükseklik
-          aspectRatio: 1.7777777778, // 16:9 en boy oranı (yaygın telefon kameraları için)
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          aspectRatio: 1.7777777778, // 16:9 en boy oranı
         },
       };
 
       const onScanSuccess = (decodedText: string, decodedResult: any) => {
         console.log(`Code matched = ${decodedText}`, decodedResult);
         onScan(decodedText);
-        stopScanning(); // Başarılı taramadan sonra taramayı durdur
+        stopScanning();
       };
 
       const onScanError = (errorMessage: string) => {
         // Hata mesajlarını konsola yazdır, kullanıcıya gösterme
         // console.warn(`QR Code scanning error = ${errorMessage}`);
-        // setError(errorMessage); // Çok fazla hata mesajı gösterebilir, dikkatli kullanın
+        // setError(errorMessage);
       };
 
       // Önceki tarayıcıyı durdur
@@ -119,7 +118,7 @@ export default function BarcodeScanner({
 
       try {
         await html5QrCodeRef.current.start(
-          deviceId || { facingMode: "environment" },
+          deviceId || { facingMode: "environment" }, // Seçilen cihazı kullan veya arka kamerayı tercih et
           config,
           onScanSuccess,
           onScanError
@@ -151,7 +150,16 @@ export default function BarcodeScanner({
       .then((videoInputDevices) => {
         if (videoInputDevices && videoInputDevices.length > 0) {
           setDevices(videoInputDevices);
-          setSelectedDeviceId(videoInputDevices[0].id || null);
+          // Arka kamerayı (environment facing) bulmaya çalış
+          const rearCamera = videoInputDevices.find(
+            (device) =>
+              device.label.toLowerCase().includes("back") ||
+              device.label.toLowerCase().includes("environment")
+          );
+          // Eğer arka kamera bulunursa onu seç, yoksa ilk bulunanı seç
+          setSelectedDeviceId(
+            rearCamera?.id || videoInputDevices[0].id || null
+          );
         } else {
           setError("Kamera cihazı bulunamadı.");
         }
