@@ -13,7 +13,6 @@ interface BarcodeScannerProps {
   onClose: () => void;
 }
 
-// html5-qrcode'un döndürdüğü cihaz nesnesi için özel bir tip tanımlıyoruz
 type Html5QrcodeCameraDevice = {
   id: string;
   label: string;
@@ -26,7 +25,6 @@ export default function BarcodeScanner({
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // devices state'inin tipini güncelliyoruz
   const [devices, setDevices] = useState<Html5QrcodeCameraDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
@@ -51,15 +49,22 @@ export default function BarcodeScanner({
       setError(null);
       setIsScanning(true);
 
+      // Dinamik qrbox boyutu: Video genişliğinin %70'i
+      const videoWidth = 300; // Varsayılan genişlik, gerçek video boyutuna göre ayarlanabilir
+      const qrboxSize = Math.min(250, videoWidth * 0.7); // Max 250px veya %70
+
       const config = {
         fps: 10, // Saniyedeki kare sayısı
-        qrbox: { width: 300, height: 100 }, // Tarama kutusu boyutu
+        qrbox: { width: qrboxSize, height: qrboxSize }, // Tarama kutusu boyutu
         disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.QR_CODE,
-          // İhtiyacınız olan diğer formatları ekleyebilirsiniz
+          Html5QrcodeSupportedFormats.UPC_A, // UPC-A ve E gibi yaygın barkodları ekleyelim
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
         ],
       };
 
@@ -119,7 +124,6 @@ export default function BarcodeScanner({
     Html5Qrcode.getCameras()
       .then((videoInputDevices) => {
         if (videoInputDevices && videoInputDevices.length > 0) {
-          // Burada videoInputDevices zaten Html5QrcodeCameraDevice[] tipinde
           setDevices(videoInputDevices);
           // İlk bulunan cihazı varsayılan olarak seç
           setSelectedDeviceId(videoInputDevices[0].id || null);
@@ -165,6 +169,23 @@ export default function BarcodeScanner({
         <div className="relative w-full h-64 bg-gray-200 rounded-md overflow-hidden">
           {/* html5-qrcode tarayıcıyı bu div içine render edecek */}
           <div id={qrCodeRegionId} className="w-full h-full object-cover"></div>
+          {/* Tarama kutusunu görselleştirmek için overlay */}
+          {isScanning && (
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              style={{
+                // qrbox boyutuna göre ortalanmış bir çerçeve
+                border: "2px dashed rgba(255, 255, 255, 0.7)",
+                boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
+                borderRadius: "8px",
+                width: "70%", // %70'lik genişlik
+                height: "70%", // %70'lik yükseklik
+                maxWidth: "250px", // Maksimum 250px
+                maxHeight: "250px", // Maksimum 250px
+                margin: "auto",
+              }}
+            ></div>
+          )}
           {!isScanning && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
               <Camera className="h-12 w-12" />
