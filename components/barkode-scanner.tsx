@@ -69,8 +69,8 @@ export default function BarcodeScanner({
       console.log("Attempting to start scanning with deviceId:", deviceId);
 
       const config = {
-        fps: 20, // Saniyedeki kare sayısı
-        qrbox: { width: 200, height: 200 }, // Tarama kutusu boyutu
+        fps: 10, // Saniyedeki kare sayısı
+        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
         disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
