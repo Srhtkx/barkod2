@@ -52,14 +52,8 @@ export default function BarcodeScanner({
 
       const config = {
         fps: 10, // Saniyedeki kare sayısı
-        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu (mobil için daha esnek olabilir)
-        // Alternatif olarak, qrbox'ı yüzde olarak ayarlayabiliriz:
-        // qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-        //   const minEdgePercentage = 0.7; // %70'i kullan
-        //   const minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight) * minEdgePercentage;
-        //   return { width: minEdgeSize, height: minEdgeSize };
-        // },
-        disableFlip: true, // Ters çevrilmiş barkodları okuma
+        qrbox: { width: 250, height: 250 }, // Tarama kutusu boyutu
+        disableFlip: false, // Ters çevrilmiş barkodları okuma
         formatsToSupport: [
           Html5QrcodeSupportedFormats.EAN_13,
           Html5QrcodeSupportedFormats.CODE_128,
@@ -68,7 +62,7 @@ export default function BarcodeScanner({
           Html5QrcodeSupportedFormats.UPC_E,
           Html5QrcodeSupportedFormats.ITF,
           Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.AZTEC, // Ek formatlar
+          Html5QrcodeSupportedFormats.AZTEC,
           Html5QrcodeSupportedFormats.CODABAR,
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.CODE_93,
@@ -77,6 +71,16 @@ export default function BarcodeScanner({
           Html5QrcodeSupportedFormats.RSS_14,
           Html5QrcodeSupportedFormats.RSS_EXPANDED,
         ],
+        // Mobil cihazlar için video kısıtlamaları ekleyelim
+        videoConstraints: {
+          facingMode: "environment", // Arka kamerayı tercih et
+          // ideal çözünürlükler deneyebiliriz
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          // veya daha düşük bir çözünürlük deneyebiliriz
+          // width: { ideal: 640 },
+          // height: { ideal: 480 },
+        },
       };
 
       const onScanSuccess = (decodedText: string, decodedResult: any) => {
