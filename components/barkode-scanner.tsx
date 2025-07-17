@@ -32,25 +32,6 @@ export default function BarcodeScanner({
 
   const stopScanning = useCallback(async () => {
     if (codeReaderRef.current) {
-      try {
-        // TypeScript hatasını geçici olarak aşmak için 'any' tipine dönüştürüyoruz.
-        // Bu, reset() metodunun çalışma zamanında var olduğunu varsayar.
-        (codeReaderRef.current as any).reset();
-      } catch (e) {
-        console.warn("Tarayıcı sıfırlanırken hata:", e);
-        // Eğer reset() metodu gerçekten yoksa veya hata verirse,
-        // alternatif olarak akışları manuel durdurmayı deneyebiliriz.
-        try {
-          (codeReaderRef.current as any).stopContinuousDecode();
-        } catch (e2) {
-          console.warn("Sürekli tarama durdurulurken hata:", e2);
-        }
-        try {
-          (codeReaderRef.current as any).stopStreams();
-        } catch (e3) {
-          console.warn("Kamera akışları durdurulurken hata:", e3);
-        }
-      }
       console.log("ZXing taraması durduruldu.");
       setIsScanning(false);
       setError(null);
@@ -59,7 +40,7 @@ export default function BarcodeScanner({
 
   const startScanning = useCallback(
     async (deviceId: string | null) => {
-      console.log("startScanning çağrıldı. Seçilen cihaz ID:", deviceId); // Yeni log
+      console.log("startScanning çağrıldı. Seçilen cihaz ID:", deviceId);
       setError(null);
       setIsScanning(true);
       console.log("Attempting to start scanning with deviceId:", deviceId);
@@ -123,7 +104,6 @@ export default function BarcodeScanner({
             // Hata mesajlarını konsola yazdır, kullanıcıya gösterme
             // if (err && !(err instanceof NotFoundException)) {
             //   console.warn(`ZXing scanning error = ${err}`);
-            //   setError(err.message);
             // }
           }
         );
@@ -150,10 +130,10 @@ export default function BarcodeScanner({
   );
 
   useEffect(() => {
-    console.log("useEffect: Kamera cihazları listeleniyor..."); // Yeni log
+    console.log("useEffect: Kamera cihazları listeleniyor...");
     BrowserMultiFormatReader.listVideoInputDevices()
       .then((videoInputDevices) => {
-        console.log("Bulunan kamera cihazları:", videoInputDevices); // Yeni log
+        console.log("Bulunan kamera cihazları:", videoInputDevices);
         if (videoInputDevices && videoInputDevices.length > 0) {
           const formattedDevices = videoInputDevices.map((device) => ({
             deviceId: device.deviceId,
@@ -161,23 +141,26 @@ export default function BarcodeScanner({
           }));
           setDevices(formattedDevices);
 
+          // Arka kamerayı (environment facing) bulmaya çalış
           const rearCamera = formattedDevices.find(
             (device) =>
               device.label.toLowerCase().includes("back") ||
               device.label.toLowerCase().includes("environment")
           );
-          setSelectedDeviceId(
-            rearCamera?.deviceId || formattedDevices[0].deviceId || null
-          );
-          console.log(
-            "Seçilen cihaz ID (useEffect):",
-            rearCamera?.deviceId || formattedDevices[0].deviceId || null
-          ); // Yeni log
+          const initialDeviceId =
+            rearCamera?.deviceId || formattedDevices[0].deviceId || null;
+          setSelectedDeviceId(initialDeviceId);
+          console.log("Seçilen cihaz ID (useEffect):", initialDeviceId);
+
+          // Eğer bir cihaz bulunduysa, taramayı otomatik başlat
+          if (initialDeviceId) {
+            startScanning(initialDeviceId);
+          }
         } else {
           setError(
             "Kamera cihazı bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
           );
-          console.error("Kamera cihazı bulunamadı."); // Yeni log
+          console.error("Kamera cihazı bulunamadı.");
         }
       })
       .catch((err) => {
@@ -190,14 +173,13 @@ export default function BarcodeScanner({
     return () => {
       stopScanning();
     };
-  }, [stopScanning]);
+  }, [stopScanning, startScanning]); // startScanning bağımlılık olarak eklendi
 
   useEffect(() => {
-    console.log("selectedDeviceId değişti:", selectedDeviceId); // Yeni log
-    if (selectedDeviceId) {
-      // startScanning(selectedDeviceId) // Bu satırı şimdilik yorum satırı yapalım, butona basıldığında başlasın
-    }
-  }, [selectedDeviceId, startScanning]);
+    console.log("selectedDeviceId değişti:", selectedDeviceId);
+    // Bu useEffect artık otomatik başlatma için kullanılmıyor,
+    // sadece selectedDeviceId'ın değişimini izlemek için kalabilir.
+  }, [selectedDeviceId]);
 
   return (
     <Card className="w-full max-w-md mx-auto">
