@@ -75,11 +75,11 @@ export default function BarcodeScanner({
         videoConstraints: {
           facingMode: "environment", // Arka kamerayı tercih et
           // ideal çözünürlükler deneyebiliriz
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          // width: { ideal: 1280 },
+          // height: { ideal: 720 },
           // veya daha düşük bir çözünürlük deneyebiliriz
-          // width: { ideal: 640 },
-          // height: { ideal: 480 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
         },
       };
 
