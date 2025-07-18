@@ -8,20 +8,7 @@ export default function QrCodeReader() {
   const qrRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
-    const initScanner = async () => {
-      const cameras = await Html5Qrcode.getCameras();
-
-      if (!cameras || cameras.length === 0) {
-        alert("Kamera bulunamadı.");
-        return;
-      }
-
-      // Arka kamera otomatik seçimi
-      const backCam = cameras.find((cam) =>
-        cam.label.toLowerCase().includes("back")
-      );
-      const cameraId = backCam?.id || cameras[0].id;
-
+    const startScanner = async () => {
       qrRef.current = new Html5Qrcode("reader", {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
         verbose: false,
@@ -29,7 +16,7 @@ export default function QrCodeReader() {
 
       try {
         await qrRef.current.start(
-          cameraId,
+          { facingMode: "environment" }, // Arka kamera için
           {
             fps: 10,
             qrbox: { width: 250, height: 250 },
@@ -39,16 +26,16 @@ export default function QrCodeReader() {
             setResult(decodedText);
             stopScanner();
           },
-          (error) => {
-            // Her hata loglanmasın, sessiz geç
+          (errorMessage) => {
+            // Sessizce geç
           }
         );
       } catch (err) {
-        console.error("Kamera başlatılamadı:", err);
+        console.error("Kamera başlatma hatası:", err);
       }
     };
 
-    initScanner();
+    startScanner();
 
     return () => {
       stopScanner();
@@ -56,31 +43,34 @@ export default function QrCodeReader() {
   }, []);
 
   const stopScanner = () => {
-    qrRef.current?.stop().then(() => {
-      qrRef.current?.clear();
-    });
+    qrRef.current
+      ?.stop()
+      .then(() => {
+        qrRef.current?.clear();
+      })
+      .catch((err) => {
+        console.error("QR durdurulamadı:", err);
+      });
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-gray-100 text-gray-800">
-      <h1 className="text-xl sm:text-2xl font-semibold my-4">
-        📷 QR Kod Okuyucu
-      </h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+      <h1 className="text-xl font-bold mb-4">📷 QR Kod Okuyucu</h1>
 
       <div
         id="reader"
-        className="w-[90vw] max-w-[320px] aspect-square rounded overflow-hidden shadow-md bg-white"
+        className="w-[90vw] max-w-[320px] aspect-square bg-white rounded shadow-md overflow-hidden"
       ></div>
 
       {result && (
-        <div className="mt-4 text-green-700 font-medium break-words text-center max-w-xs">
+        <div className="mt-4 text-green-700 font-semibold text-center break-words max-w-xs">
           ✅ Sonuç: {result}
         </div>
       )}
 
       <button
         onClick={stopScanner}
-        className="mt-6 px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+        className="mt-6 px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700"
       >
         Durdur
       </button>
