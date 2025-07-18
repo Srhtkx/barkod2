@@ -2,8 +2,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
-import { DecodeHintType, BarcodeFormat } from "@zxing/library";
+import { Html5QrcodeSupportedFormats, Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Camera, Scan, XCircle } from "lucide-react";
@@ -14,8 +13,8 @@ interface BarcodeScannerProps {
   onClose: () => void;
 }
 
-type CameraDevice = {
-  deviceId: string;
+type Html5QrcodeCameraDevice = {
+  id: string;
   label: string;
 };
 
@@ -23,89 +22,80 @@ export default function BarcodeScanner({
   onScan,
   onClose,
 }: BarcodeScannerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [devices, setDevices] = useState<CameraDevice[]>([]);
+  const [devices, setDevices] = useState<Html5QrcodeCameraDevice[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
+  const qrCodeRegionId = "qr-code-full-region"; // Tarayıcının render edileceği div ID'si
+
   const stopScanning = useCallback(async () => {
-    if (codeReaderRef.current) {
-      console.log("ZXing taraması durduruldu.");
-      setIsScanning(false);
-      setError(null);
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+        console.log("QR Code scanning stopped.");
+        setIsScanning(false);
+        setError(null);
+      } catch (err) {
+        console.error("Unable to stop scanning.", err);
+        setError("Tarayıcı durdurulurken hata oluştu.");
+      }
     }
   }, []);
 
   const startScanning = useCallback(
     async (deviceId: string | null) => {
-      console.log("startScanning çağrıldı. Seçilen cihaz ID:", deviceId);
       setError(null);
       setIsScanning(true);
-      console.log("Attempting to start scanning with deviceId:", deviceId);
 
-      if (!videoRef.current) {
-        setError("Video elementi bulunamadı.");
-        setIsScanning(false);
-        return;
-      }
+      // Dinamik qrbox boyutu: Video genişliğinin %70'i
+      const videoWidth = 300; // Varsayılan genişlik, gerçek video boyutuna göre ayarlanabilir
+      const qrboxSize = Math.min(250, videoWidth * 0.7); // Max 250px veya %70
+
+      const config = {
+        fps: 10, // Saniyedeki kare sayısı
+        qrbox: { width: qrboxSize, height: qrboxSize }, // Tarama kutusu boyutu
+        disableFlip: false, // Ters çevrilmiş barkodları okuma
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.UPC_A, // UPC-A ve E gibi yaygın barkodları ekleyelim
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+        ],
+      };
+
+      const onScanSuccess = (decodedText: string, decodedResult: any) => {
+        console.log(`Code matched = ${decodedText}`, decodedResult);
+        onScan(decodedText);
+        stopScanning(); // Başarılı taramadan sonra taramayı durdur
+      };
+
+      const onScanError = (errorMessage: string) => {
+        // Hata mesajlarını konsola yazdır, kullanıcıya gösterme
+        // console.warn(`QR Code scanning error = ${errorMessage}`);
+        // setError(errorMessage); // Çok fazla hata mesajı gösterebilir, dikkatli kullanın
+      };
 
       // Önceki tarayıcıyı durdur
       await stopScanning();
 
-      // ZXing okuyucusunu oluştur
-      if (!codeReaderRef.current) {
-        const hints = new Map();
-        const formats = [
-          BarcodeFormat.EAN_13,
-          BarcodeFormat.CODE_128,
-          BarcodeFormat.QR_CODE,
-          BarcodeFormat.UPC_A,
-          BarcodeFormat.UPC_E,
-          BarcodeFormat.ITF,
-          BarcodeFormat.DATA_MATRIX,
-          BarcodeFormat.AZTEC,
-          BarcodeFormat.CODABAR,
-          BarcodeFormat.CODE_39,
-          BarcodeFormat.CODE_93,
-          BarcodeFormat.MAXICODE,
-          BarcodeFormat.PDF_417,
-          BarcodeFormat.RSS_14,
-          BarcodeFormat.RSS_EXPANDED,
-        ];
-        hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-        codeReaderRef.current = new BrowserMultiFormatReader(hints);
+      // Html5Qrcode instance'ını oluştur veya mevcutsa kullan
+      if (!html5QrCodeRef.current) {
+        html5QrCodeRef.current = new Html5Qrcode(qrCodeRegionId);
       }
 
       try {
-        // Kamera akışını başlat ve barkodları çöz
-        const videoInputDevice =
-          deviceId ||
-          (await BrowserMultiFormatReader.listVideoInputDevices())[0]?.deviceId;
-
-        if (!videoInputDevice) {
-          setError(
-            "Kamera cihazı bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
-          );
-          setIsScanning(false);
-          return;
-        }
-
-        codeReaderRef.current.decodeFromVideoDevice(
-          videoInputDevice,
-          videoRef.current,
-          (result, err) => {
-            if (result) {
-              console.log(`Code matched = ${result.getText()}`, result);
-              onScan(result.getText());
-              stopScanning(); // Başarılı taramadan sonra taramayı durdur
-            }
-            // Hata mesajlarını konsola yazdır, kullanıcıya gösterme
-            // if (err && !(err instanceof NotFoundException)) {
-            //   console.warn(`ZXing scanning error = ${err}`);
-            // }
-          }
+        // Tarayıcıyı başlat
+        // deviceId null ise, Html5Qrcode varsayılan olarak arka kamerayı (environment) kullanmaya çalışır.
+        await html5QrCodeRef.current.start(
+          deviceId || { facingMode: "environment" }, // Seçilen cihazı kullan veya arka kamerayı tercih et
+          config,
+          onScanSuccess,
+          onScanError
         );
         setIsScanning(true);
       } catch (err: any) {
@@ -130,37 +120,15 @@ export default function BarcodeScanner({
   );
 
   useEffect(() => {
-    console.log("useEffect: Kamera cihazları listeleniyor...");
-    BrowserMultiFormatReader.listVideoInputDevices()
+    // Bileşen yüklendiğinde kamera cihazlarını bir kez al
+    Html5Qrcode.getCameras()
       .then((videoInputDevices) => {
-        console.log("Bulunan kamera cihazları:", videoInputDevices);
         if (videoInputDevices && videoInputDevices.length > 0) {
-          const formattedDevices = videoInputDevices.map((device) => ({
-            deviceId: device.deviceId,
-            label: device.label || `Kamera ${device.deviceId}`,
-          }));
-          setDevices(formattedDevices);
-
-          // Arka kamerayı (environment facing) bulmaya çalış
-          const rearCamera = formattedDevices.find(
-            (device) =>
-              device.label.toLowerCase().includes("back") ||
-              device.label.toLowerCase().includes("environment")
-          );
-          const initialDeviceId =
-            rearCamera?.deviceId || formattedDevices[0].deviceId || null;
-          setSelectedDeviceId(initialDeviceId);
-          console.log("Seçilen cihaz ID (useEffect):", initialDeviceId);
-
-          // Eğer bir cihaz bulunduysa, taramayı otomatik başlat
-          if (initialDeviceId) {
-            startScanning(initialDeviceId);
-          }
+          setDevices(videoInputDevices);
+          // İlk bulunan cihazı varsayılan olarak seç
+          setSelectedDeviceId(videoInputDevices[0].id || null);
         } else {
-          setError(
-            "Kamera cihazı bulunamadı. Lütfen bir kamera bağlı olduğundan emin olun."
-          );
-          console.error("Kamera cihazı bulunamadı.");
+          setError("Kamera cihazı bulunamadı.");
         }
       })
       .catch((err) => {
@@ -170,16 +138,18 @@ export default function BarcodeScanner({
         );
       });
 
+    // Bileşen kaldırıldığında tarayıcıyı durdur
     return () => {
       stopScanning();
     };
-  }, [stopScanning, startScanning]); // startScanning bağımlılık olarak eklendi
+  }, [stopScanning]);
 
+  // selectedDeviceId değiştiğinde taramayı başlat/yeniden başlat
   useEffect(() => {
-    console.log("selectedDeviceId değişti:", selectedDeviceId);
-    // Bu useEffect artık otomatik başlatma için kullanılmıyor,
-    // sadece selectedDeviceId'ın değişimini izlemek için kalabilir.
-  }, [selectedDeviceId]);
+    if (selectedDeviceId) {
+      startScanning(selectedDeviceId);
+    }
+  }, [selectedDeviceId, startScanning]);
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -197,20 +167,21 @@ export default function BarcodeScanner({
           </Alert>
         )}
         <div className="relative w-full h-64 bg-gray-200 rounded-md overflow-hidden">
-          {/* ZXing tarayıcıyı bu video elementi içine render edecek */}
-          <video ref={videoRef} className="w-full h-full object-cover"></video>
+          {/* html5-qrcode tarayıcıyı bu div içine render edecek */}
+          <div id={qrCodeRegionId} className="w-full h-full object-cover"></div>
           {/* Tarama kutusunu görselleştirmek için overlay */}
           {isScanning && (
             <div
               className="absolute inset-0 flex items-center justify-center pointer-events-none"
               style={{
+                // qrbox boyutuna göre ortalanmış bir çerçeve
                 border: "2px dashed rgba(255, 255, 255, 0.7)",
                 boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.5)",
                 borderRadius: "8px",
-                width: "70%",
-                height: "70%",
-                maxWidth: "250px",
-                maxHeight: "250px",
+                width: "70%", // %70'lik genişlik
+                height: "70%", // %70'lik yükseklik
+                maxWidth: "250px", // Maksimum 250px
+                maxHeight: "250px", // Maksimum 250px
                 margin: "auto",
               }}
             ></div>
@@ -260,8 +231,8 @@ export default function BarcodeScanner({
               }}
             >
               {devices.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label}
+                <option key={device.id} value={device.id}>
+                  {device.label || `Kamera ${device.id}`}
                 </option>
               ))}
             </select>
