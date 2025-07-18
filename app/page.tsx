@@ -1,69 +1,90 @@
 "use client";
 
-import { useState } from "react";
-import { StockProvider } from "@/context/stock-context";
-import BarcodeScanner from "@/components/barkode-scanner";
-import AddItemDialog from "@/components/add-item-dialog";
-import StockList from "@/components/stock-list";
-import { Button } from "@/components/ui/button";
-import { Plus, Scan } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Html5Qrcode,
+  Html5QrcodeScanner,
+  Html5QrcodeSupportedFormats,
+} from "html5-qrcode";
 
-export default function Home() {
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false);
-  const [scannedBarcode, setScannedBarcode] = useState<string | undefined>(
-    undefined
-  );
+export default function QrCodeReader() {
+  const [result, setResult] = useState<string | null>(null);
+  const qrRef = useRef<Html5Qrcode | null>(null);
+  const scannerRef = useRef<HTMLDivElement | null>(null);
 
-  const handleScanResult = (result: string) => {
-    setScannedBarcode(result);
-    setIsScannerOpen(false); // Close scanner after scan
-    setIsAddItemDialogOpen(true); // Open add item dialog with scanned barcode
-  };
+  useEffect(() => {
+    const initScanner = async () => {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        const cameraId = devices[0].id;
 
-  const handleAddItemDialogClose = (open: boolean) => {
-    setIsAddItemDialogOpen(open);
-    if (!open) {
-      setScannedBarcode(undefined); // Clear scanned barcode when dialog closes
+        qrRef.current = new Html5Qrcode("qr-reader", {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
+        });
+
+        qrRef.current
+          .start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 },
+              aspectRatio: 1.0,
+            },
+            (decodedText) => {
+              setResult(decodedText);
+              stopScanner();
+            },
+            (errorMessage) => {
+              console.warn("Tarama hatası:", errorMessage);
+            }
+          )
+          .catch((err) => {
+            console.error("Başlatma hatası:", err);
+          });
+      }
+    };
+
+    initScanner();
+
+    return () => {
+      stopScanner();
+    };
+  }, []);
+
+  const stopScanner = () => {
+    if (qrRef.current) {
+      qrRef.current
+        .stop()
+        .then(() => {
+          qrRef.current?.clear();
+          console.log("QR tarayıcı durduruldu.");
+        })
+        .catch((err) => {
+          console.error("Durdurma hatası:", err);
+        });
     }
   };
 
   return (
-    <StockProvider>
-      <div className="min-h-screen bg-gray-100 dark:bg-gray-950 p-4 sm:p-6 lg:p-8">
-        <header className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">
-            Deri Stok Yönetimi
-          </h1>
-          <div className="flex gap-2">
-            <Button onClick={() => setIsScannerOpen(true)}>
-              <Scan className="mr-2 h-4 w-4" /> Barkod Tara
-            </Button>
-            <Button onClick={() => setIsAddItemDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" /> Manuel Ekle
-            </Button>
-          </div>
-        </header>
-
-        <main className="grid gap-8">
-          {isScannerOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-              <BarcodeScanner
-                onScan={handleScanResult}
-                onClose={() => setIsScannerOpen(false)}
-              />
-            </div>
-          )}
-
-          <AddItemDialog
-            open={isAddItemDialogOpen}
-            onOpenChange={handleAddItemDialogClose}
-            initialBarcode={scannedBarcode}
-          />
-
-          <StockList />
-        </main>
-      </div>
-    </StockProvider>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <h1 className="text-2xl font-bold mb-4">📷 QR Kod Okuyucu</h1>
+      <div
+        id="qr-reader"
+        className="w-[300px] h-[300px] border"
+        ref={scannerRef}
+      ></div>
+      {result && (
+        <div className="mt-4 text-green-600 font-semibold">
+          ✅ Sonuç: {result}
+        </div>
+      )}
+      <button
+        onClick={stopScanner}
+        className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+      >
+        Durdur
+      </button>
+    </div>
   );
 }
