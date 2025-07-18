@@ -1,47 +1,50 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Html5Qrcode,
-  Html5QrcodeScanner,
-  Html5QrcodeSupportedFormats,
-} from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 export default function QrCodeReader() {
   const [result, setResult] = useState<string | null>(null);
   const qrRef = useRef<Html5Qrcode | null>(null);
-  const scannerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const initScanner = async () => {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length > 0) {
-        const cameraId = devices[0].id;
+      const cameras = await Html5Qrcode.getCameras();
 
-        qrRef.current = new Html5Qrcode("qr-reader", {
-          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-          verbose: false,
-        });
+      if (!cameras || cameras.length === 0) {
+        alert("Kamera bulunamadı.");
+        return;
+      }
 
-        qrRef.current
-          .start(
-            cameraId,
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 },
-              aspectRatio: 1.0,
-            },
-            (decodedText) => {
-              setResult(decodedText);
-              stopScanner();
-            },
-            (errorMessage) => {
-              console.warn("Tarama hatası:", errorMessage);
-            }
-          )
-          .catch((err) => {
-            console.error("Başlatma hatası:", err);
-          });
+      // Arka kamera otomatik seçimi
+      const backCam = cameras.find((cam) =>
+        cam.label.toLowerCase().includes("back")
+      );
+      const cameraId = backCam?.id || cameras[0].id;
+
+      qrRef.current = new Html5Qrcode("reader", {
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        verbose: false,
+      });
+
+      try {
+        await qrRef.current.start(
+          cameraId,
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1,
+          },
+          (decodedText) => {
+            setResult(decodedText);
+            stopScanner();
+          },
+          (error) => {
+            // Her hata loglanmasın, sessiz geç
+          }
+        );
+      } catch (err) {
+        console.error("Kamera başlatılamadı:", err);
       }
     };
 
@@ -53,35 +56,31 @@ export default function QrCodeReader() {
   }, []);
 
   const stopScanner = () => {
-    if (qrRef.current) {
-      qrRef.current
-        .stop()
-        .then(() => {
-          qrRef.current?.clear();
-          console.log("QR tarayıcı durduruldu.");
-        })
-        .catch((err) => {
-          console.error("Durdurma hatası:", err);
-        });
-    }
+    qrRef.current?.stop().then(() => {
+      qrRef.current?.clear();
+    });
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h1 className="text-2xl font-bold mb-4">📷 QR Kod Okuyucu</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-gray-100 text-gray-800">
+      <h1 className="text-xl sm:text-2xl font-semibold my-4">
+        📷 QR Kod Okuyucu
+      </h1>
+
       <div
-        id="qr-reader"
-        className="w-[300px] h-[300px] border"
-        ref={scannerRef}
+        id="reader"
+        className="w-[90vw] max-w-[320px] aspect-square rounded overflow-hidden shadow-md bg-white"
       ></div>
+
       {result && (
-        <div className="mt-4 text-green-600 font-semibold">
+        <div className="mt-4 text-green-700 font-medium break-words text-center max-w-xs">
           ✅ Sonuç: {result}
         </div>
       )}
+
       <button
         onClick={stopScanner}
-        className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        className="mt-6 px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
       >
         Durdur
       </button>
